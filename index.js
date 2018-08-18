@@ -51,16 +51,23 @@ app.post('/image', asyncMiddleware(async (req, res) => {
     });*/
     let foundIsbn = null;
     resp[0].fullTextAnnotation.text.split('\n').forEach(line => {
+      console.log(line, line.toLowerCase().startsWith('isbn'));
       if (line.toLowerCase().startsWith('isbn')) {
         foundIsbn = line.toLowerCase().replace('isbn-10', '').replace('isbn-13', '').replace(/[^0-9X]/g, '').toUpperCase();
       }
     });
+    console.log(foundIsbn, resp[0].fullTextAnnotation);
     if (!foundIsbn) return res.send(resp[0].fullTextAnnotation.text);
+
+    console.log('Found ISBN:', foundIsbn);
 
     request('https://www.abebooks.com/servlet/SearchResults?ds=1&isbn='+foundIsbn, (err, http, body) => {
       const match = body.match(/<meta itemprop="name" content="([^"]+)" \/>/);
       if (!match) res.status(400).send('No book found for that ISBN');
-      else res.send(match[1]);
+      else {
+        console.log('Book name', match[1]);
+        res.send(match[1]+'\n'+match[1].replace(/\([^)]+\)/g, '').trim());
+      }
     });
   }).catch(err => {
     console.error(err);
