@@ -1,0 +1,99 @@
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <script src="/assets/dice.js"></script>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script>
+
+      function uniq(a) {
+        var seen = {};
+        return a.filter(function(item) {
+          return seen.hasOwnProperty(item) ? false : (seen[item] = true);
+        });
+      }
+
+      function uniqBy(a, key) {
+        var seen = {};
+        return a.filter(function(item) {
+          var k = key(item);
+          return seen.hasOwnProperty(k) ? false : (seen[k] = true);
+        });
+      }
+      
+      var BOOK_SOURCES = <%- JSON.stringify(book_sources) %>;
+      var BOOK_NAMES = [];
+      var BOOKS_BY_NAME = {};
+
+      BOOK_SOURCES.forEach(books => {
+        books.forEach(book => {
+          BOOK_NAMES.push(book.name);
+          BOOKS_BY_NAME[book.name] = book;
+        });
+      });
+
+      BOOK_NAMES = uniq(BOOK_NAMES);
+
+      function submitImage() {
+        $('#label-text').text('Uploading...');
+        $.post({
+          url: '/image',
+          data: new FormData($('#form')[0]),
+          contentType: false,
+          processData: false,
+        })
+          .fail(function(error) {
+            $('#label-text').text('Upload Image');
+            alert(error.responseText)
+          })
+          .done(function(text) {
+            const MAX_BEST_PER_BIT = 3;
+
+            var all_best = [];
+
+            text.split('\n').forEach(text_bit => {
+              var best = [];
+              BOOK_NAMES.forEach(book_name => {
+                var score = diceCoefficient(text_bit, book_name);
+                if (best.length < MAX_BEST_PER_BIT) best.push([book_name, score]);
+                else {
+                  for (let i = 0; i < best.length; i++) {
+                    if (best[i][1] < score) {
+                      best[i] = [book_name, score];
+                      break;
+                    }
+                  }
+                }
+              });
+
+              for (let i = 0; i < best.length; i++) {
+                all_best.push(best[i]);
+              }
+            });
+
+            all_best.sort(function(a, b) { return b[1] - a[1]; });
+            all_best = uniqBy(all_best, function(book) { return book[0]; }); // Use book name
+
+            var best_image = BOOKS_BY_NAME[all_best[0][0]].image;
+
+            $('#response').html('<h1 style="font-size:50px">Level '+(BOOKS_BY_NAME[all_best[0][0]].level || 'not found')+'</h1>'+(best_image?'<img src="'+best_image+'" style="max-width: 100%" /><br><br>':'')+all_best.slice(0, 10).map(function(book) {
+              return book[1].toFixed(4) + ' - ' + book[0] + ': <b>' + (BOOKS_BY_NAME[book[0]].level || 'No Level') + '</b>';
+            }).join('<br>'));
+
+            $('#label-text').text('Upload Image');
+          });
+      }
+
+    </script>
+  </head>
+  <body>
+    <form id="form">
+      <label style="width: 100%;font-size:40px;background-color:bisque;display:block;text-align:center">
+          <span id="label-text">Upload Image</span>
+          <input type="file" name="image" size="500" onChange="submitImage()" style="display: none">
+          </label> 
+      <br>
+      <!-- <button type="button" onClick="submitImage()">Resubmit</button><br> -->
+      <div id="response"></div>
+    </form>
+  </body>
+</html>
